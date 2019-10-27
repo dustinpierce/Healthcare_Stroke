@@ -22,8 +22,15 @@ For this project, we communicate and contribute code in R (`v 3.6.0`) via RStudi
 ***
 We obtained our dataset from Kaggle [Healthcare Dataset Stroke Data](https://www.kaggle.com/asaumya/healthcare-dataset-stroke-data). This dataset contains information on more than 40,000 patients along dimensions such as gender, BMI, smoke history, and more. 
 
+### **Codebase configuration**
+***
+For this project we work with the tidyverse [tidyverse](https://www.tidyverse.org/) across the board to manipulate, visualize, transform and otherwise understand data 
 
+We use the following packages to train evaluate models: random forest [randomForest](https://cran.r-project.org/web/packages/randomForest/randomForest.pdf), support vector machine [libsvm](https://cran.r-project.org/web/packages/e1071/vignettes/svmdoc.pdf), neural network [neuralnet](https://cran.r-project.org/web/packages/neuralnet/neuralnet.pdf) and logistic regression [glm2](https://cran.r-project.org/web/packages/glm2/glm2.pdf).
 
+In addition to these modeling packages, we make use of [bootstrap](https://cran.r-project.org/web/packages/bootstrap/bootstrap.pdf) to address target class inbalance and [mice](https://cran.r-project.org/web/packages/mice/mice.pdf) to handle missing data.
+
+The user needs these packages installed as well as the most current version or R and RStudio to leverage this work.
 
 
 
