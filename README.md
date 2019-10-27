@@ -20,7 +20,7 @@ For this project, we communicate and contribute code in R (`v 3.6.0`) via RStudi
 
 ### **Data Source(s)**
 ***
-We obtained our dataset from Kaggle [Healthcare Dataset Stroke Data](https://www.kaggle.com/asaumya/healthcare-dataset-stroke-data)
+We obtained our dataset from Kaggle [Healthcare Dataset Stroke Data](https://www.kaggle.com/asaumya/healthcare-dataset-stroke-data). This dataset contains information on more than 40,000 patients along dimensions such as gender, BMI, smoke history, and more. 
 
 
 
