@@ -16,10 +16,8 @@ library(DT)
 
 dataset <- iris %>% rename("Sepal_Length"=Sepal.Length, "Sepal_Width"=Sepal.Width, "Petal_Length"=Petal.Length, "Petal_Width"=Petal.Width)
 
-ui <- tagList(
-    shinythemes::themeSelector(),
-    navbarPage(
-        # theme = "cerulean",  # <--- To use a theme, uncomment this
+ui <- navbarPage(
+        theme = shinythemes::shinytheme("slate"),
         "Stroke Data",
         tabPanel("Data Exploration",
                  sidebarPanel(
@@ -58,7 +56,6 @@ ui <- tagList(
         tabPanel("Models", "This panel is intentionally left blank"),
         tabPanel("Background", "This panel is intentionally left blank")
     )
-)
 
 server <- function(input, output) {
     output$txtout <- renderText({
