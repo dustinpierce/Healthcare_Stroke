@@ -1,0 +1,46 @@
+---
+title: "Untitled"
+author: "Abdul"
+date: "10/27/2019"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(readr)
+library(ggplot2)
+
+
+
+# we will start with importing the  dataset.
+test <- read_csv("~/Healthcare Data set/test_2v.csv")
+head(test)
+train <- read_csv("~/Healthcare Data set/train_2v.csv")
+summary(test)
+summary(train)
+
+# A summary of the data inducates missing values for both BMI and Smoking_status
+
+# Combining both the train and test dataset
+
+all_data = rbind(train[,-12],test)
+all_data$hypertension = as.factor(all_data$hypertension)
+all_data$heart_disease = as.factor(all_data$heart_disease)
+
+# Checking percentage of missing values for both BMI and Smoking status
+Missing_Data_Smoking <- round(100*sum(is.na(all_data$smoking_status))/nrow(all_data),2)
+Missing_Data_Smoking
+# Smoking status has a lot of missing values accounting for 30.71%
+
+Missing_Data_BMI <- round(100*sum(is.na(all_data$bmi))/nrow(all_data),2)
+Missing_Data_BMI
+# BMI has a sizable ammount of missing values accounting for 3.31%
+mean_bmi<- mean(all_data$bmi,na.rm = T)
+all_data <- all_data %>%
+ mutate(bmi = ifelse(is.na(bmi),mean_bmi,bmi))
+t
+
+
+
+
+
