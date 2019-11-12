@@ -1,0 +1,148 @@
+---
+title: "Stroke Data: EDA"
+author: "Abdul, Casey, and Dustin"
+date: "10/27/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE, fig.cap="A caption", out.width = '100%'}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+  
+# Explortatory Data Analysis 
+
+## Import data
+  
+```{r}
+library(tidyverse)
+library(readr)
+library(png)
+library(caret)
+library(fastDummies)
+
+###### Issue: this code did not carry out the desired task ##################
+# stroke_url<-"https://www.kaggle.com/asaumya/healthcare-dataset-stroke-data#train_2v.csv"
+# download.file(stroke_url, "data.zip")
+###### Need help to resolve: really want to automate data set up ############
+
+# Manually uploaded data after downloading to local from Kaggle
+df <- read_csv("train_2v.csv")
+# using png package to display data dictionary 
+img <- png::readPNG("/home/rstudio/px/stroke_dataset_dict.png")
+grid::grid.raster(img)
+```
+
+## Understanding the data
+
+```{r}
+head(df)
+table(df$stroke, useNA = "ifany") # 1 NA, should drop as this is the target
+
+(table(df$stroke, useNA = "ifany")[[2]]/(table(df$stroke, useNA = "ifany")[[1]] + table(df$stroke, useNA = "ifany")[[2]]))*100 # ~ 2% YES stroke (need to balance classes)
+
+str(df) # need to map all non-id character features to factor/numeric
+summary(df) # will also need indicator/dummy variables for multi-class categorical
+
+unique(df$smoking_status) # NA is viewed as a character but is actually null
+unique(df$work_type) # similar NA issue; will need dummary variables for each category
+unique(df$Residence_type) # similar NA issue; will need dummary variables for each category
+unique(df$gender) # includes "other" option so cannot use binary indicator
+unique(df$ever_married) # binary -- convert to indicator feature
+unique(df$hypertension) 
+class(df$hypertension) # binary and numeric!
+
+class(df$id) # need to convert to character
+```
+
+## Feature Engineering
+
+```{r}
+# Engineering features based on above suggestions
+names(df)
+df <- df %>% mutate(id = as.character(id),
+                    ever_married = ifelse(ever_married == "Yes", 1, 0),
+                    gender = ifelse(gender == "Male", 1,
+                                    ifelse(gender == "Female", 0, NA)),
+                    Residence_type = ifelse(Residence_type == "Urban", 1,
+                                            ifelse(Residence_type == "Rural", 0, NA)),
+                    # interim fix below, need to add dummy variables for below
+                    work_type = as.factor(work_type),
+                    smoking_status = as.factor(smoking_status))
+
+# Dropping smoking status for now b/c 30% null -- can revisit on next iteration
+(sum(is.na(df$smoking_status))/dim(df)[1])*100
+
+df <- df %>% select(-smoking_status)
+
+## Now will create indicator variables for all categorical features
+dummies <- dummy_cols(df %>% select(-id))
+dummies <- dummies %>% select(-work_type)
+
+training_data <- dplyr::left_join(df %>% select(-work_type), dummies) %>% tidyr::drop_na()
+(dim(training_data)[1]/dim(df)[1])*100 # preserve ~97% of records after dropping null
+
+rm(dummies)
+### Notes:
+# 1. work_type_NA all null do to dropping null's from feature set
+training_data <- training_data %>% select(-work_type_NA)
+# 2.Filtering unrealistic values of BMI
+max(training_data$bmi) # doesn't seem realistic according to cdc
+training_data <- training_data %>% filter(bmi < 66)
+dim(training_data)[1]/dim(df)[1] # still have ~96% of original records 
+
+summary(training_data)
+
+# Comparing stroke versus non-stroke patients
+stroke_cases <- training_data %>% filter(stroke == 1)
+stroke_cases_no <- training_data %>% filter(stroke == 0)
+
+summary(stroke_cases$age) # stroke victims older compared to non-stroke
+summary(stroke_cases_no$age)
+
+summary(stroke_cases$hypertension) # 27% have hypertension compared to 8% for non-stroke
+summary(stroke_cases_no$hypertension)
+
+summary(stroke_cases$heart_disease) # 22% have heart disease compared to 4% for non-stroke
+summary(stroke_cases_no$heart_disease)
+
+summary(stroke_cases$ever_married) # 89% YES ever married compared to 64% for non-stroke
+summary(stroke_cases_no$ever_married)
+
+summary(stroke_cases$avg_glucose_level) # glucose levels higher on avg than non-stroke
+summary(stroke_cases_no$avg_glucose_level)
+rm(stroke_cases, stroke_cases_no)
+```
+
+## Class imbalance
+
+```{r}
+# Original proportions of classes (0 = NO, 1 = YES)
+prop.table(table(training_data$stroke))
+
+```
+
+
+## First round of models: linear features
+
+```{r}
+set.seed(13)
+train_index <- createDataPartition(training_data$stroke, p = 0.8)[[1]]
+
+train <- training_data[train_index,]
+test  <- training_data[-train_index,]
+
+# control <- caret::trainControl(method = "none", 
+#                                repeats = 3, 
+#                                classProbs = TRUE, 
+#                                summaryFunction = twoClassSummary)
+# test_model <- train(stroke ~ .,
+#                     data = train,
+#                     method = "ranger",
+#                     preProc = c("center", "scale"),
+#                     trControl = control)
+
+# Logistic regression
+# NN
+# Random forest
+
+```
