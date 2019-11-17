@@ -16,9 +16,15 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```{r}
 library(tidyverse)
 library(readr)
+#install.packages("png")
 library(png)
 library(caret)
+#install.packages("fastDummies")
 library(fastDummies)
+library(randomForest)
+library(neuralnet)
+#install.packages("ROSE")
+library(ROSE)
 
 ###### Issue: this code did not carry out the desired task ##################
 # stroke_url<-"https://www.kaggle.com/asaumya/healthcare-dataset-stroke-data#train_2v.csv"
@@ -35,10 +41,7 @@ grid::grid.raster(img)
 ## Understanding the data
 
 ```{r}
-head(df)
-table(df$stroke, useNA = "ifany") # 1 NA, should drop as this is the target
-
-(table(df$stroke, useNA = "ifany")[[2]]/(table(df$stroke, useNA = "ifany")[[1]] + table(df$stroke, useNA = "ifany")[[2]]))*100 # ~ 2% YES stroke (need to balance classes)
+prop.table(table(df$stroke, useNA = "ifany"))*100 # ~ 2% YES stroke (need to balance classes)
 
 str(df) # need to map all non-id character features to factor/numeric
 summary(df) # will also need indicator/dummy variables for multi-class categorical
@@ -48,9 +51,9 @@ unique(df$work_type) # similar NA issue; will need dummary variables for each ca
 unique(df$Residence_type) # similar NA issue; will need dummary variables for each category
 unique(df$gender) # includes "other" option so cannot use binary indicator
 unique(df$ever_married) # binary -- convert to indicator feature
-unique(df$hypertension) 
-class(df$hypertension) # binary and numeric!
+unique(df$hypertension)
 
+class(df$hypertension) # binary and numeric!
 class(df$id) # need to convert to character
 ```
 
@@ -73,7 +76,6 @@ df <- df %>% mutate(id = as.character(id),
 (sum(is.na(df$smoking_status))/dim(df)[1])*100
 
 df <- df %>% select(-smoking_status)
-
 ## Now will create indicator variables for all categorical features
 dummies <- dummy_cols(df %>% select(-id))
 dummies <- dummies %>% select(-work_type)
@@ -83,21 +85,31 @@ training_data <- dplyr::left_join(df %>% select(-work_type), dummies) %>% tidyr:
 
 rm(dummies)
 ### Notes:
-# 1. work_type_NA all null do to dropping null's from feature set
+# 1. work_type_NA all null do dropping from feature set
 training_data <- training_data %>% select(-work_type_NA)
 # 2.Filtering unrealistic values of BMI
-max(training_data$bmi) # doesn't seem realistic according to cdc
+max(training_data$bmi, na.rm = TRUE) # doesn't seem realistic according to cdc
 training_data <- training_data %>% filter(bmi < 66)
 dim(training_data)[1]/dim(df)[1] # still have ~96% of original records 
+########################################################################
+scaled_data <- as.data.frame(scale(training_data %>% select(age, avg_glucose_level, bmi),
+                                   center = TRUE, scale = TRUE))
+training_data <- cbind(training_data %>% select(-age,-avg_glucose_level,-bmi), scaled_data)
+rm(scaled_data)
 
 summary(training_data)
+```
 
+## Stroke cases
+
+```{r}
 # Comparing stroke versus non-stroke patients
 stroke_cases <- training_data %>% filter(stroke == 1)
 stroke_cases_no <- training_data %>% filter(stroke == 0)
 
-summary(stroke_cases$age) # stroke victims older compared to non-stroke
-summary(stroke_cases_no$age)
+# stroke victims older compared to non-stroke
+summary(stroke_cases$age) # Mean = 68.52, Median = 72 (yrs old)
+summary(stroke_cases_no$age) # Mean = 41.46, Median = 43 (yrs old)
 
 summary(stroke_cases$hypertension) # 27% have hypertension compared to 8% for non-stroke
 summary(stroke_cases_no$hypertension)
@@ -105,11 +117,12 @@ summary(stroke_cases_no$hypertension)
 summary(stroke_cases$heart_disease) # 22% have heart disease compared to 4% for non-stroke
 summary(stroke_cases_no$heart_disease)
 
-summary(stroke_cases$ever_married) # 89% YES ever married compared to 64% for non-stroke
+summary(stroke_cases$ever_married) # 89% YES ever married compared to 63% for non-stroke
 summary(stroke_cases_no$ever_married)
 
 summary(stroke_cases$avg_glucose_level) # glucose levels higher on avg than non-stroke
 summary(stroke_cases_no$avg_glucose_level)
+
 rm(stroke_cases, stroke_cases_no)
 ```
 
@@ -117,8 +130,25 @@ rm(stroke_cases, stroke_cases_no)
 
 ```{r}
 # Original proportions of classes (0 = NO, 1 = YES)
-prop.table(table(training_data$stroke))
+prop.table(table(training_data$stroke))*100
 
+# Setting formula with linear features
+formula_linear <- as.formula(stroke ~ gender + age + hypertension + heart_disease + ever_married + Residence_type + avg_glucose_level + bmi + work_type_children + work_type_Private + work_type_Never_worked + work_type_Self_employed + work_type_Govt_job)
+
+# renaming feature name to avoid error due to "-" in Self-employed
+training_data <- training_data %>% dplyr::rename(work_type_Self_employed = `work_type_Self-employed`)
+########################################################################
+# Balancing classed with ROSE package
+data_rose <- ROSE(formula_linear, p = 0.75, data = training_data)$data
+names(data_rose)
+
+dim(data_rose) # 40706 x 14
+dim(training_data) # 40706 x 15
+
+table(data_rose$stroke) # 0:10168, 1:30538 
+
+training_data <- cbind(training_data %>% select(id), data_rose)
+prop.table(table(training_data$stroke)) # classes in 3:1 ratio
 ```
 
 
@@ -130,19 +160,39 @@ train_index <- createDataPartition(training_data$stroke, p = 0.8)[[1]]
 
 train <- training_data[train_index,]
 test  <- training_data[-train_index,]
-
-# control <- caret::trainControl(method = "none", 
-#                                repeats = 3, 
-#                                classProbs = TRUE, 
-#                                summaryFunction = twoClassSummary)
-# test_model <- train(stroke ~ .,
-#                     data = train,
-#                     method = "ranger",
-#                     preProc = c("center", "scale"),
-#                     trControl = control)
-
+########################################################################
 # Logistic regression
-# NN
-# Random forest
+logit <- glm(formula = formula_linear, data = train, family = "binomial")
+test$pred_logit <- predict(logit, newdata = test, type = "response")
+test <- test %>% mutate(pred_logit = as.factor(ifelse(pred_logit > 0.5, 1, 0)),
+                        stroke = as.factor(stroke))
 
+summary(test$stroke)
+summary(test$pred_logit)
+
+confusionMatrix(test$pred_logit, test$stroke, positive = "1")
+########################################################################
+# NN
+nn <- neuralnet::neuralnet(formula = formula_linear, data = train, 
+                           lifesign = "full", linear.output = FALSE, 
+                           threshold = 0.025, startweights = NULL, 
+                           err.fct = "ce")
+test$pred_nn <- predict(nn, newdata = test, type = "response")                       
+test <- test %>% mutate(pred_nn = as.factor(ifelse(pred_nn > 0.5, 1, 0)))
+
+summary(test$pred_nn)
+summary(test$stroke)
+
+confusionMatrix(test$pred_nn, test$stroke, positive = "1")
+########################################################################
+# Random forest
+rf <- randomForest::randomForest(formula = formula_linear, data = train, ntree = 500)
+test$pred_rf <- predict(rf, test, type = "response")
+test <- test %>% mutate(pred_rf = as.factor(ifelse(pred_rf > 0.5, 1, 0)))
+
+summary(test$pred_rf)
+summary(test$stroke)
+
+confusionMatrix(test$pred_rf, test$stroke, positive = "1")
 ```
+
