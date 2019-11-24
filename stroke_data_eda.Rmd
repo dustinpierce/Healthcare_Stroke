@@ -163,3 +163,57 @@ summary(data_rose_0.75)
 
 ```
 
+## First round of models: linear features
+
+```{r}
+set.seed(13)
+
+data_rose_0.5_stroke <- data_rose_0.5 %>% filter(stroke == 1)
+stroke_index <- sample(seq_len(nrow(data_rose_0.5_stroke)), size = 0.8*dim(data_rose_0.5_stroke)[1])
+train_stroke <- data_rose_0.5_stroke[stroke_index, ]
+test_stroke <- data_rose_0.5_stroke[-stroke_index, ]
+
+
+data_rose_0.5_nostroke <- data_rose_0.5 %>% filter(stroke == 0)
+nostroke_index <- sample(seq_len(nrow(data_rose_0.5_nostroke)), size = 0.8*dim(data_rose_0.5_nostroke)[1])
+train_nostroke <- data_rose_0.5_nostroke[nostroke_index, ]
+test_nostroke <- data_rose_0.5_nostroke[-nostroke_index, ]
+
+
+train <- rbind(train_stroke, train_nostroke)
+test <- rbind(test_stroke, test_nostroke)
+########################################################################
+# Logistic regression
+logit <- glm(formula = formula_linear, data = train, family = "binomial")
+test$pred_logit <- predict(logit, newdata = test, type = "response")
+test <- test %>% mutate(pred_logit = as.factor(ifelse(pred_logit > 0.5, 1, 0)),
+                        stroke = as.factor(stroke))
+
+summary(test$stroke)
+summary(test$pred_logit)
+
+confusionMatrix(test$pred_logit, test$stroke, positive = "1")
+########################################################################
+# NN
+nn <- neuralnet::neuralnet(formula = formula_linear, data = train, 
+                           lifesign = "full", linear.output = FALSE, 
+                           threshold = 0.025, startweights = NULL, 
+                           err.fct = "ce")
+test$pred_nn <- predict(nn, newdata = test, type = "response")                       
+test <- test %>% mutate(pred_nn = as.factor(ifelse(pred_nn > 0.5, 1, 0)))
+
+summary(test$pred_nn)
+summary(test$stroke)
+
+confusionMatrix(test$pred_nn, test$stroke, positive = "1")
+########################################################################
+# Random forest
+rf <- randomForest::randomForest(formula = formula_linear, data = train, ntree = 500)
+test$pred_rf <- predict(rf, test, type = "response")
+test <- test %>% mutate(pred_rf = as.factor(ifelse(pred_rf > 0.5, 1, 0)))
+
+summary(test$pred_rf)
+summary(test$stroke)
+
+confusionMatrix(test$pred_rf, test$stroke, positive = "1")
+```
