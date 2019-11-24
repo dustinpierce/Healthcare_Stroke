@@ -101,8 +101,8 @@ training_data <- dummies %>% tidyr::drop_na()
 summary(training_data)
 # 1.Filtering unrealistic values of BMI
 max(training_data$bmi, na.rm = TRUE) # doesn't seem realistic according to cdc
-training_data <- training_data %>% filter(bmi < 66)
-dim(training_data)[1]/dim(dummies)[1] # still have ~96% of original records 
+training_data <- training_data %>% filter(bmi < 50)
+dim(training_data)[1]/dim(dummies)[1] # still have ~95% of original records 
 # 2. Quick look at stroke cases
 summary(training_data %>% filter(stroke == 1))
 rm(dummies)
@@ -121,8 +121,8 @@ stroke_cases <- training_data %>% filter(stroke == 1)
 stroke_cases_no <- training_data %>% filter(stroke == 0)
 
 # stroke victims older compared to non-stroke
-summary(stroke_cases$age) # Mean = 68.52, Median = 72 (yrs old)
-summary(stroke_cases_no$age) # Mean = 41.46, Median = 43 (yrs old)
+summary(stroke_cases$age) # Mean = 68.68, Median = 72 (yrs old)
+summary(stroke_cases_no$age) # Mean = 41.41, Median = 43 (yrs old)
 
 summary(stroke_cases$hypertension) # 27% have hypertension compared to 8% for non-stroke
 summary(stroke_cases_no$hypertension)
@@ -133,8 +133,8 @@ summary(stroke_cases_no$heart_disease)
 summary(stroke_cases$ever_married) # 89% YES ever married compared to 63% for non-stroke
 summary(stroke_cases_no$ever_married)
 
-summary(stroke_cases$avg_glucose_level) # glucose levels mean/median = 130.38/104.67
-summary(stroke_cases_no$avg_glucose_level) # glucose level mean/median = 103.26/91.22
+summary(stroke_cases$avg_glucose_level) # glucose levels mean/median = 130.25/104.6
+summary(stroke_cases_no$avg_glucose_level) # glucose level mean/median = 102.97/91.14
 
 rm(stroke_cases, stroke_cases_no)
 ```
@@ -151,7 +151,7 @@ formula_linear <- as.formula(stroke ~ gender + age + hypertension + heart_diseas
 ## Balancing classed with ROSE package
 # 50/50 split
 data_rose_0.5 <- ROSE(formula_linear, p = 0.5, data = training_data, seed = 123, hmult.majo=0, hmult.mino=0)$data
-dim(data_rose_0.5) # 40706 x 14
+dim(data_rose_0.5) # 40163 x 14
 prop.table(table(data_rose_0.5$stroke))*100 
 summary(data_rose_0.5)
 
@@ -162,6 +162,7 @@ prop.table(table(data_rose_0.75$stroke))*100
 summary(data_rose_0.75)
 
 ```
+
 
 ## First round of models: linear features
 
@@ -182,11 +183,14 @@ test_nostroke <- data_rose_0.5_nostroke[-nostroke_index, ]
 
 train <- rbind(train_stroke, train_nostroke)
 test <- rbind(test_stroke, test_nostroke)
+
+rm(data_rose_0.5_stroke, stroke_index, train_stroke, test_stroke,
+   data_rose_0.5_nostroke, nostroke_index, train_nostroke, test_nostroke)
 ########################################################################
 # Logistic regression
 logit <- glm(formula = formula_linear, data = train, family = "binomial")
-test$pred_logit <- predict(logit, newdata = test, type = "response")
-test <- test %>% mutate(pred_logit = as.factor(ifelse(pred_logit > 0.5, 1, 0)),
+test$prob_logit <- predict(logit, newdata = test, type = "response")
+test <- test %>% mutate(pred_logit = as.factor(ifelse(prob_logit > 0.5, 1, 0)),
                         stroke = as.factor(stroke))
 
 summary(test$stroke)
@@ -197,10 +201,12 @@ confusionMatrix(test$pred_logit, test$stroke, positive = "1")
 # NN
 nn <- neuralnet::neuralnet(formula = formula_linear, data = train, 
                            lifesign = "full", linear.output = FALSE, 
-                           threshold = 0.025, startweights = NULL, 
+                           threshold = 0.1, hidden = 2, startweights = NULL, 
                            err.fct = "ce")
 test$pred_nn <- predict(nn, newdata = test, type = "response")                       
 test <- test %>% mutate(pred_nn = as.factor(ifelse(pred_nn > 0.5, 1, 0)))
+
+plot(nn)
 
 summary(test$pred_nn)
 summary(test$stroke)
@@ -208,12 +214,25 @@ summary(test$stroke)
 confusionMatrix(test$pred_nn, test$stroke, positive = "1")
 ########################################################################
 # Random forest
-rf <- randomForest::randomForest(formula = formula_linear, data = train, ntree = 500)
-test$pred_rf <- predict(rf, test, type = "response")
-test <- test %>% mutate(pred_rf = as.factor(ifelse(pred_rf > 0.5, 1, 0)))
+rf <- randomForest::randomForest(formula = formula_linear, data = train, 
+                                 ntree = 250, importance = TRUE)
+test$prob_rf <- predict(rf, test, type = "response")
+test <- test %>% mutate(pred_rf = as.factor(ifelse(prob_rf > 0.5, 1, 0)))
 
 summary(test$pred_rf)
 summary(test$stroke)
 
 confusionMatrix(test$pred_rf, test$stroke, positive = "1")
+```
+
+## Variable importance
+
+```{r}
+# Variable importance
+imp <- randomForest::importance(x = rf, type = 2)
+as.data.frame(imp, key = "IncNodePurity")
+
+plot(rf, type="l")
+#randomForest::partialPlot(x = rf, pred.data = train, x.var = gender, which.class = 1)
+
 ```
