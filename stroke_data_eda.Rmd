@@ -22,6 +22,7 @@ library(caret)
 #install.packages("fastDummies")
 library(fastDummies)
 library(randomForest)
+#install.packages("neuralnet")
 library(neuralnet)
 #install.packages("ROSE")
 library(ROSE)
@@ -34,7 +35,7 @@ library(ROSE)
 # Manually uploaded data after downloading to local from Kaggle
 df <- read_csv("train_2v.csv")
 # using png package to display data dictionary 
-img <- png::readPNG("/home/rstudio/px/stroke_dataset_dict.png")
+img <- png::readPNG("/home/rstudio/dx/stroke_dataset_dict.png")
 grid::grid.raster(img)
 ```
 
@@ -42,6 +43,7 @@ grid::grid.raster(img)
 
 ```{r}
 prop.table(table(df$stroke, useNA = "ifany"))*100 # ~ 2% YES stroke (need to balance classes)
+ggplot(data = df, aes(x = stroke)) + geom_bar() # want to add text to this to include records
 
 str(df) # need to map all non-id character features to factor/numeric
 summary(df) # will also need indicator/dummy variables for multi-class categorical
@@ -61,7 +63,6 @@ class(df$id) # need to convert to character
 
 ```{r}
 # Engineering features based on above suggestions
-names(df)
 df <- df %>% mutate(id = as.character(id),
                     ever_married = ifelse(ever_married == "Yes", 1, 0),
                     gender = ifelse(gender == "Male", 1,
@@ -72,32 +73,44 @@ df <- df %>% mutate(id = as.character(id),
                     work_type = as.factor(work_type),
                     smoking_status = as.factor(smoking_status))
 
-# Dropping smoking status for now b/c 30% null -- can revisit on next iteration
+# Dropping smoking status for now b/c 31% null -- can revisit on next iteration
 (sum(is.na(df$smoking_status))/dim(df)[1])*100
-
 df <- df %>% select(-smoking_status)
-## Now will create indicator variables for all categorical features
-dummies <- dummy_cols(df %>% select(-id))
-dummies <- dummies %>% select(-work_type)
 
-training_data <- dplyr::left_join(df %>% select(-work_type), dummies) %>% tidyr::drop_na()
+## Now will create indicator variables for all categorical features
+dummies <- fastDummies::dummy_cols(df %>% select(-id))
+dummies <- dummies %>% dplyr::select(-work_type, -work_type_NA) %>% 
+  dplyr::rename(work_type_Self_employed = `work_type_Self-employed`)
+
+summary(dummies)
+dplyr::setdiff(names(dummies), names(df))
+dplyr::setdiff(names(df), names(dummies))
+# re-assigning id
+dummies$id <- df$id
+# Checking equality for common features before and after transform
+all.equal(df %>% select(-work_type), dummies %>% select(-work_type_children,
+                                                        -work_type_Private,
+                                                        -work_type_Self_employed,
+                                                        -work_type_Govt_job,
+                                                        -work_type_Never_worked))
+
+training_data <- dummies %>% tidyr::drop_na()
 (dim(training_data)[1]/dim(df)[1])*100 # preserve ~97% of records after dropping null
 
-rm(dummies)
 ### Notes:
-# 1. work_type_NA all null do dropping from feature set
-training_data <- training_data %>% select(-work_type_NA)
-# 2.Filtering unrealistic values of BMI
+summary(training_data)
+# 1.Filtering unrealistic values of BMI
 max(training_data$bmi, na.rm = TRUE) # doesn't seem realistic according to cdc
 training_data <- training_data %>% filter(bmi < 66)
-dim(training_data)[1]/dim(df)[1] # still have ~96% of original records 
+dim(training_data)[1]/dim(dummies)[1] # still have ~96% of original records 
+# 2. Quick look at stroke cases
+summary(training_data %>% filter(stroke == 1))
+rm(dummies)
 ########################################################################
-scaled_data <- as.data.frame(scale(training_data %>% select(age, avg_glucose_level, bmi),
-                                   center = TRUE, scale = TRUE))
-training_data <- cbind(training_data %>% select(-age,-avg_glucose_level,-bmi), scaled_data)
-rm(scaled_data)
-
-summary(training_data)
+# scaled_data <- as.data.frame(scale(training_data %>% select(age, avg_glucose_level, bmi),
+#                                    center = TRUE, scale = TRUE))
+# training_data <- cbind(training_data %>% select(-age,-avg_glucose_level,-bmi), scaled_data)
+# rm(scaled_data)
 ```
 
 ## Stroke cases
@@ -120,8 +133,8 @@ summary(stroke_cases_no$heart_disease)
 summary(stroke_cases$ever_married) # 89% YES ever married compared to 63% for non-stroke
 summary(stroke_cases_no$ever_married)
 
-summary(stroke_cases$avg_glucose_level) # glucose levels higher on avg than non-stroke
-summary(stroke_cases_no$avg_glucose_level)
+summary(stroke_cases$avg_glucose_level) # glucose levels mean/median = 130.38/104.67
+summary(stroke_cases_no$avg_glucose_level) # glucose level mean/median = 103.26/91.22
 
 rm(stroke_cases, stroke_cases_no)
 ```
@@ -134,65 +147,19 @@ prop.table(table(training_data$stroke))*100
 
 # Setting formula with linear features
 formula_linear <- as.formula(stroke ~ gender + age + hypertension + heart_disease + ever_married + Residence_type + avg_glucose_level + bmi + work_type_children + work_type_Private + work_type_Never_worked + work_type_Self_employed + work_type_Govt_job)
-
-# renaming feature name to avoid error due to "-" in Self-employed
-training_data <- training_data %>% dplyr::rename(work_type_Self_employed = `work_type_Self-employed`)
 ########################################################################
-# Balancing classed with ROSE package
-data_rose <- ROSE(formula_linear, p = 0.75, data = training_data)$data
-names(data_rose)
+## Balancing classed with ROSE package
+# 50/50 split
+data_rose_0.5 <- ROSE(formula_linear, p = 0.5, data = training_data, seed = 123, hmult.majo=0, hmult.mino=0)$data
+dim(data_rose_0.5) # 40706 x 14
+prop.table(table(data_rose_0.5$stroke))*100 
+summary(data_rose_0.5)
 
-dim(data_rose) # 40706 x 14
-dim(training_data) # 40706 x 15
+# 75/25 split
+data_rose_0.75 <- ROSE(formula_linear, p = 0.75, data = training_data, seed = 123)$data
+dim(data_rose_0.75) # 40706 x 14
+prop.table(table(data_rose_0.75$stroke))*100
+summary(data_rose_0.75)
 
-table(data_rose$stroke) # 0:10168, 1:30538 
-
-training_data <- cbind(training_data %>% select(id), data_rose)
-prop.table(table(training_data$stroke)) # classes in 3:1 ratio
-```
-
-
-## First round of models: linear features
-
-```{r}
-set.seed(13)
-train_index <- createDataPartition(training_data$stroke, p = 0.8)[[1]]
-
-train <- training_data[train_index,]
-test  <- training_data[-train_index,]
-########################################################################
-# Logistic regression
-logit <- glm(formula = formula_linear, data = train, family = "binomial")
-test$pred_logit <- predict(logit, newdata = test, type = "response")
-test <- test %>% mutate(pred_logit = as.factor(ifelse(pred_logit > 0.5, 1, 0)),
-                        stroke = as.factor(stroke))
-
-summary(test$stroke)
-summary(test$pred_logit)
-
-confusionMatrix(test$pred_logit, test$stroke, positive = "1")
-########################################################################
-# NN
-nn <- neuralnet::neuralnet(formula = formula_linear, data = train, 
-                           lifesign = "full", linear.output = FALSE, 
-                           threshold = 0.025, startweights = NULL, 
-                           err.fct = "ce")
-test$pred_nn <- predict(nn, newdata = test, type = "response")                       
-test <- test %>% mutate(pred_nn = as.factor(ifelse(pred_nn > 0.5, 1, 0)))
-
-summary(test$pred_nn)
-summary(test$stroke)
-
-confusionMatrix(test$pred_nn, test$stroke, positive = "1")
-########################################################################
-# Random forest
-rf <- randomForest::randomForest(formula = formula_linear, data = train, ntree = 500)
-test$pred_rf <- predict(rf, test, type = "response")
-test <- test %>% mutate(pred_rf = as.factor(ifelse(pred_rf > 0.5, 1, 0)))
-
-summary(test$pred_rf)
-summary(test$stroke)
-
-confusionMatrix(test$pred_rf, test$stroke, positive = "1")
 ```
 
