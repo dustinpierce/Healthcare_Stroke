@@ -28,10 +28,48 @@ For this project we work with the tidyverse [tidyverse](https://www.tidyverse.or
 
 We use the following packages to train and evaluate models: random forest [randomForest](https://cran.r-project.org/web/packages/randomForest/randomForest.pdf), support vector machine [libsvm](https://cran.r-project.org/web/packages/e1071/vignettes/svmdoc.pdf), neural network [neuralnet](https://cran.r-project.org/web/packages/neuralnet/neuralnet.pdf) and logistic regression [glm2](https://cran.r-project.org/web/packages/glm2/glm2.pdf).
 
-In addition to these modeling packages, we make use of [ROSE](https://cran.r-project.org/web/packages/ROSE/ROSE.pdf) to address class inbalance, [fastDummies](https://cran.r-project.org/web/packages/fastDummies/fastDummies.pdf) to convert categorical data to binary variables, [png](https://cran.r-project.org/web/packages/png/png.pdf) to display png files in RMarkdown report, and [caret](https://cran.r-project.org/web/packages/caret/caret.pdf) to otherwise investigate model related tasks such as principal component analysis, partitioning data, etc.
+In addition to these modeling packages, we make use of [ROSE](https://cran.r-project.org/web/packages/ROSE/ROSE.pdf) to address class inbalance, [fastDummies](https://cran.r-project.org/web/packages/fastDummies/fastDummies.pdf) to convert categorical data to binary variables, [png](https://cran.r-project.org/web/packages/png/png.pdf) to display png files in RMarkdown, and [caret](https://cran.r-project.org/web/packages/caret/caret.pdf) to otherwise investigate model related tasks such as principal component analysis, partitioning data, etc.
 
 The user needs these packages installed as well as the most current version or R and RStudio to leverage this work.
 
+## Data Preparation
+
+### **Exploratory data analysis**
+***
+
+
+### **Feature engineering**
+***
+
+
+### **Class imbalance**
+***
+
+
+### **Partition data**
+***
+
+
+## Modeling
+
+### **Binary classification framework**
+***
+
+
+### **Model training**
+***
+
+
+## Evaluation
+
+### **Metrics and other considerations**
+***
+
+
+## Deployment
+
+### **ShinyApp**
+***
 
 
 
