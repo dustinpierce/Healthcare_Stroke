@@ -1,5 +1,5 @@
 ---
-title: "Stat-613_hwk3_Pierce"
+title: "Stat-613:Final Project, Predicting Stroke"
 author: "Dustin Pierce, Casey Aguilar-Gervase, Abdul Tarawally"
 date: "December 2, 2019"
 output:
@@ -45,7 +45,7 @@ library(tree)
 
 Data is manually uploaded to local machine after downloading from [Healthcare Dataset Stroke Data](https://www.kaggle.com/asaumya/healthcare-dataset-stroke-data). Note that the data dictionary loads as a screen shot (png) if directly downloaded from Kaggle. Thus, we rename to `stroke_dataset_dict.png`. We ignore `test_2v.csv` because stroke outcomes are not available. Therefore, we only utilize `train_2v.csv` for project data; in other words, we parse `train_2v.csv` into training and testing data. 
 
-```{r data, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r data, eval = TRUE, fig.cap="A caption", out.width = '100%'}
 # Manually uploaded data after downloading to local from Kaggle
 df <- read_csv("train_2v.csv")
 # using png package to display data dictionary 
@@ -57,7 +57,7 @@ grid::grid.raster(img)
 
 ## Understanding the data
 
-```{r understand_data, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r understand_data, eval = TRUE, fig.cap="A caption", out.width = '100%'}
 prop.table(table(df$stroke, useNA = "ifany"))*100 # ~ 2% YES stroke (need to balance classes)
 
 summary(df) # will also need indicator/dummy variables for multi-class categorical
@@ -78,10 +78,62 @@ ggplot(data = df, aes(x = stroke)) +
   ggtitle("Non-stroke cases (left), Stroke cases (right)") +
   theme(plot.title = element_text(hjust = 0.5))
 ```
+## Exploratory Data Visualization
+
+We experimented with a number of exploratory visualizations and only include ones of interest.
+
+```{r data_viz, eval = TRUE, fig.cap="A caption", out.width = '100%'}
+## Continuous variables summarized by work type
+# ggplot(data = df, aes(reorder(work_type, bmi), bmi, color = work_type)) +
+#   geom_boxplot() +
+#   labs(title = "Distribution of BMI by Work Type",x = "work_type") +
+#   theme(plot.title = element_text(hjust = .5))
+
+ggplot(data = df, aes(reorder(work_type, age), age, color = work_type)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Age by Work Type",x = "work_type") +
+  theme(plot.title = element_text(hjust = .5))
+
+# ggplot(data = df, aes(reorder(work_type, avg_glucose_level), avg_glucose_level, color = work_type)) +
+#   geom_boxplot() +
+#   labs(title = "Distribution of Glucose by Work Type",x = "work_type") +
+#   theme(plot.title = element_text(hjust = .5))
+
+## Continuous variables summarized by marital status
+# ggplot(data = df, aes(reorder(ever_married, age), age, color = ever_married)) +
+#   geom_boxplot() +
+#   labs(title = "Distribution of Age by Marital Status",x = "work_type") +
+#   theme(plot.title = element_text(hjust = .5))
+
+# ggplot(data = df, aes(reorder(ever_married, bmi), bmi, color = ever_married)) +
+#   geom_boxplot() +
+#   labs(title = "Distribution of BMI by Marital Status",x = "work_type") +
+#   theme(plot.title = element_text(hjust = .5))
+
+# ggplot(data = df, aes(reorder(ever_married, avg_glucose_level), avg_glucose_level, color = ever_married)) +
+#   geom_boxplot() +
+#   labs(title = "Distribution of Glucose by Marital Status",x = "work_type") +
+#   theme(plot.title = element_text(hjust = .5))
+
+# ggplot(data = df, aes(reorder(Residence_type, bmi), bmi, color = Residence_type)) +
+#   geom_boxplot() +
+#   labs(title = "Distribution of BMI by Residence type",x = "Residence_type") +
+#   theme(plot.title = element_text(hjust = .5))
+
+ggplot(data = df, aes(reorder(stroke, age), age, color = stroke)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Age by Stroke outcome",x = "stroke") +
+  theme(plot.title = element_text(hjust = .5))
+
+ggplot(data = df, aes(reorder(stroke, avg_glucose_level), avg_glucose_level, color = stroke)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Glucose by Stroke outcome",x = "stroke") +
+  theme(plot.title = element_text(hjust = .5))
+```
 
 ## Feature Engineering
 
-```{r feature_engineering, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r feature_engineering, eval = TRUE, fig.cap="A caption", out.width = '100%'}
 # Engineering features based on above suggestions
 df <- df %>% mutate(id = as.character(id),
                     ever_married = ifelse(ever_married == "Yes", 1, 0),
@@ -126,7 +178,7 @@ rm(dummies, df)
 
 ## Comparing Stroke and Non-stroke cases
 
-```{r stroke_cases, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r stroke_cases,echo=TRUE, fig.cap="A caption", out.width = '100%'}
 # Comparing stroke versus non-stroke patients
 stroke_cases <- training_data %>% filter(stroke == 1)
 stroke_cases_no <- training_data %>% filter(stroke == 0)
@@ -155,7 +207,7 @@ In this section we address the class imbalance problem. Note that in the explora
 
 From the ROSE package documentation, "*ROSE (Random Over-Sampling Examples) aids the task of binary classification in the presence of rare classes. It produces a synthetic, possibly balanced, sample of data simulated according to a smoothed-bootstrap approach. ... Essentially, ROSE selects an observation belonging to the class k and generates new examples in its neighbourhood, where the width of the neighbourhood is determined by [diagonal covariance matrix]*". Note that class k refers to the response classes and in our case means (`1 = YES stroke`, `0 = NO stroke`). For our use case, we decided to balance the classes in a ratio of 1:1 (`p = 0.5`) and apply conservative shrink factors to each class (`hmult.majo = 0 = hmult.mino`). 
 
-```{r class_balance, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r class_balance, eval = TRUE, fig.cap="A caption", out.width = '100%'}
 # Original proportions of classes (0 = NO, 1 = YES)
 prop.table(table(training_data$stroke))*100
 # Setting formula with linear features
@@ -180,7 +232,7 @@ ggplot(data = data_rose_0.5, aes(x = stroke)) +
 
 In this section we compare explained variance via princple component analysis for class imbalanced and class balanced data. 
 
-```{r pca, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r pca, eval = TRUE, fig.cap="A caption", out.width = '100%'}
 #Principal Component Analysis -- imbalanced classes
 pc_imbalanced <- prcomp(training_data %>% select(-id), center = TRUE, scale. = TRUE)
 pc_imbalanced$scale # checking the scale to see that the sd is calculated for each variable.
@@ -197,7 +249,6 @@ g_imbalanced <- ggbiplot(pc_imbalanced, obs.scale = 1, var.scale = 1,
   ggtitle("Principal Component Analysis for Imbalanced Classes")
 
 g_imbalanced
-
 #Principal Component Analysis -- balanced classes
 pc_balanced <- prcomp(data_rose_0.5, center = TRUE, scale. = TRUE)
 pc_balanced$scale # checking the scale to see that the sd is calculated for each variable.
@@ -216,11 +267,11 @@ g_balanced <- ggbiplot(pc_balanced, obs.scale = 1, var.scale = 1,
 g_balanced
 ```
 
-## Modeling
+# Modeling
 
-### Partitioning data
+## Partitioning data
 
-```{r partition, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r partition, include=FALSE, echo=TRUE, fig.cap="A caption", out.width = '100%'}
 # set seed
 set.seed(13) 
 ## divide stroke cases into train/test with an index
@@ -253,15 +304,17 @@ rm(data_rose_0.5_stroke, stroke_index, train_stroke, test_stroke,
    data_rose_0.5_nostroke, nostroke_index, train_nostroke, test_nostroke)
 ```
 
-### Logistic Regression
+## Logistic Regression
 
 In this subsection, we train a logistic regression model using the `glm` package. 
 
 We calculate the class probabilities together with the class predictions and assess performance via the so-called `confusion matrix`.
 
-```{r logsitic, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r logsitic, eval = TRUE, fig.cap="A caption", out.width = '100%'}
 ## Logistic regression
+
 logit <- stats::glm(formula = formula_linear, data = train, family = "binomial")
+
 test$prob_logit <- predict(logit, newdata = test, type = "response")
 test$link_logit <- predict(logit, newdata = test, type = "link")
 test <- test %>% mutate(pred_logit = as.factor(ifelse(prob_logit > 0.5, 1, 0)),
@@ -283,13 +336,13 @@ confusion_matrix_logit$table
 ROSE::roc.curve(response = test$stroke, predicted = test$pred_logit)
 ```
 
-### Neural network
+## Neural network
 
-In this subsection, we train a neural network using the `neuralnet` package. We experimented with a variety of activiation functions, learning algorthims and neural network architectures. Ultimately, we decided to use 1 hidden layer with 2 neurons, binary cross entropy as the error function, sigmoid activation function and resilient backpropagation without backtracking algorithm. 
+In this subsection, we train a neural network using the `neuralnet` package. We experimented with a variety of activiation functions, learning algorthims and neural network architectures. Ultimately, we decided to use 1 hidden layer with 2 neurons, binary cross entropy as the error function, sigmoid activation function and resilient backpropagation with backtracking algorithm. 
 
 We calculate the class probabilities together with the class predictions and assess performance via the so-called `confusion matrix`.
 
-```{r nn, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r nn, eval = TRUE, fig.cap="A caption", out.width = '100%'}
 ## NN
 #####################################################
 # Activation functions considered:
@@ -297,12 +350,14 @@ We calculate the class probabilities together with the class predictions and ass
 #       leaky_relu <- function(x){ifelse(x < 0, 0.01*x, x)}
 #       relu <- function(x){ifelse(x < 0, 0, x)}
 #####################################################
+
 sigmoid <- function(x) {1.0 / (1.0 + exp(-x))}
 nn <- neuralnet::neuralnet(formula = formula_linear, data = train, 
                            lifesign = "full", linear.output = FALSE, 
-                           threshold = 0.5, hidden = 2, startweights = NULL, 
+                           threshold = 5, hidden = 2, startweights = NULL, 
                            err.fct = "ce", act.fct = sigmoid,
-                           algorithm = "rprop-", stepmax = 1e7)
+                           algorithm = "rprop+", stepmax = 1e7)
+
 test$prob_nn <- predict(nn, newdata = test, type = "response")                       
 test <- test %>% mutate(pred_nn = as.factor(ifelse(prob_nn > 0.5, 1, 0)))
 
@@ -317,16 +372,18 @@ confusion_matrix_nn$table
 ROSE::roc.curve(response = test$stroke, predicted = test$pred_nn)
 ```
 
-### Random forest
+## Random forest
 
 In this subsection, we train a random forest model using the `randomForest` package. We experimented with various values for the tree number and noticed diminishing returns for values greater than ~150. We agreed that the other parameters were reasonable for our use case (e.g. `mtry`).  
 
 We calculate the class probabilities together with the class predictions and assess performance via the so-called `confusion matrix`.
 
-```{r rf, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r rf, eval = TRUE, fig.cap="A caption", out.width = '100%'}
 # Random forest
+
 rf <- randomForest::randomForest(formula = formula_linear, data = train, 
                                  ntree = 150, importance = TRUE)
+
 test$prob_rf <- predict(rf, test, type = "response")
 test <- test %>% mutate(pred_rf = as.factor(ifelse(prob_rf > 0.5, 1, 0)))
 
@@ -364,11 +421,11 @@ confusion_matrix_rf$table
 ROSE::roc.curve(response = test$stroke, predicted = test$pred_rf)
 ```
 
-### Voting classifier
+## Voting classifier
 
 In this subsection, we consider ensembles of the 3 models above in the form of voting classifiers. We construct a weighted classifiers to compare performance to each model indiviudally.   
 
-```{r vote, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r vote, eval = TRUE, fig.cap="A caption", out.width = '100%'}
 ## Voting classifier
 test <- test %>% dplyr::mutate(prob_soft_vote = (test$prob_logit + test$prob_nn + test$prob_rf)/3)
 test <- test %>% dplyr::mutate(pred_soft_vote = as.factor(ifelse(prob_soft_vote > 0.5, 1, 0)))
@@ -385,7 +442,64 @@ ROSE::roc.curve(response = test$stroke, predicted = test$pred_soft_vote)
 
 Note that, thus far, models have been trained and evaluated using a 90%-10% train-test split of the **balanced class data**. Here we further evaluate performance of our models by predicting stroke for the original, i.e. imbalanced, data set (denoted `training_data`).
 
-```{r validation, include=FALSE, fig.cap="A caption", out.width = '100%'}
+```{r validation, eval = TRUE,fig.cap="A caption", out.width = '100%'}
+# Recall
+names(training_data)
+dim(training_data)
+# Converting stroke to factor, remove id variable
+training_data <- training_data %>% dplyr::mutate(stroke = as.factor(stroke)) %>% dplyr::select(-id)
 
+### Predictions on original data
+# logistic regression
+training_data$prob_logit <- predict(logit, newdata = training_data, type = "response")
+training_data <- training_data %>% mutate(pred_logit = as.factor(ifelse(prob_logit > 0.5, 1, 0)))
 
+confusionMatrix(training_data$pred_logit, training_data$stroke, positive = "1")
+
+# neural network
+training_data$prob_nn <- predict(nn, newdata = training_data, type = "response")
+training_data <- training_data %>% mutate(pred_nn = as.factor(ifelse(prob_nn > 0.5, 1, 0)))
+
+confusionMatrix(training_data$pred_nn, training_data$stroke, positive = "1")
+
+# random forest
+training_data$prob_rf <- predict(rf, newdata = training_data, type = "response")
+training_data <- training_data %>% mutate(pred_rf = as.factor(ifelse(prob_rf > 0.5, 1, 0)))
+
+confusionMatrix(training_data$pred_rf, training_data$stroke, positive = "1")
+
+## Voting classifier
+training_data<- training_data %>% dplyr::mutate(prob_soft_vote = (training_data$prob_logit + training_data$prob_nn + training_data$prob_rf)/3)
+training_data<- training_data %>% dplyr::mutate(pred_soft_vote = as.factor(ifelse(prob_soft_vote > 0.5, 1, 0)))
+
+confusionMatrix(training_data$pred_soft_vote, training_data$stroke, positive = "1")
 ```
+
+## Miscellaneous: 2nd order terms
+
+```{r rf_2o, eval = TRUE, fig.cap="A caption", out.width = '100%'}
+# Random forest with second order terms
+rf_2o <- randomForest::randomForest(formula = stroke ~ gender + age + hypertension + heart_disease + ever_married + Residence_type + avg_glucose_level + bmi + work_type_children + work_type_Self_employed + I(age^2) + I(bmi^2) + I(avg_glucose_level^2) +  I(age*ever_married) + I(bmi*ever_married) + I(avg_glucose_level*ever_married) +  I(age*heart_disease) + I(bmi*heart_disease) + I(avg_glucose_level*heart_disease) + I(age*hypertension) + I(bmi*hypertension) + I(avg_glucose_level*hypertension) + I(age*gender) + I(bmi*gender) + I(avg_glucose_level*gender) , data = train, ntree = 100, importance = TRUE)
+
+# Variable importance
+imp_matrix_2o <- randomForest::importance(x = rf_2o, type = 2)
+imp_2o <- data.frame(imp_matrix_2o)
+imp_2o <- imp_2o %>% 
+  dplyr::mutate(features = row.names(imp_2o)) %>% 
+  dplyr::arrange(desc(IncNodePurity)) %>% 
+  dplyr::select(features, IncNodePurity) %>%
+  dplyr::rename(importance = IncNodePurity)
+
+rm(imp_matrix_2o)
+imp_2o # Variable importance with 2nd order terms
+```
+
+# Conclusion
+
+## Summary 
+
+Based on the performance both on balanced and imbalanced data, the random forest seems to be the best model. It it simultaneously the most accurate, sensitive and specific model assessed in this project. In fact, the random forest model is so sensitive that it **never** predicts a stroke outcome when the outcome is not a stroke occurrence.
+
+## Reflections
+
+After completing the primary modeling effort, it appears that diving deeper into second order terms may have been a fruitful venture but was not incorporated in the models. In addition, while principal component analysis comveys a clear message about the trends in the data, it may have also been worthwhile to consider linear or quadratic discriminant analysis as well to best understand how and why the stroke and non-stroke classes separate. 
