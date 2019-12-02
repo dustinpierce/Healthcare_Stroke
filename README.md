@@ -34,43 +34,78 @@ The user needs these packages installed as well as the most current version or R
 
 ## Data Preparation
 
-### **Exploratory data analysis**
-***
-
+Data was downloaded from Kaggle and imported as a csv to begin analysis.
 
 ### **Feature engineering**
 ***
+
+- **Missing data**:
+Missing data was not a significant problem in this project. After all initial transformations were complete, we opted to drop 1 entire column that was 31% null (smoking status) and then drop all rows with 1 or more `NA` after.
+
+- **Reasonable data**:
+The variable BMI (body mass index) had some unreasonable values (e.g. `BMI = 67`); according to the CDC, values this high are unfeasible. Thus, we removed all cases with a BMI greater than 50%. After handling missing values and filter BMI we still had 95% of the original rows in the raw data.
+
+- **Transformations**:
+
+- One column (`id`) was numeric and thus was converted to character
+
+- Each categorical column was converted to a collection of binary indicator variables (1 for each category in that variable)
+
+- Any feature with 0 variance after transformation was removed from the training data
 
 
 ### **Class imbalance**
 ***
 
+We address the class imbalance problem with the ROSE package by randomly oversampling according to a smoothed-bootstrap approach. In other words, we generate synthetic data that is representative of the rare class (having a stroke in this case) to balance occurrences of stroke and non-stroke. This allows us to train models in a minimally biased manner. 
+
 
 ### **Partition data**
 ***
 
+For the purposes of this project, we apply a 90% - 10% train and test partition for model training. 
+
 
 ## Modeling
+
+### **Principal component analysis**
+***
+
+We utilize prinicpal component analysis to visualize and better understand which features best explain the variance of the data.
 
 ### **Binary classification framework**
 ***
 
+For each model type used in this project (neural network, logistic regression, and random forest), we compute both the class probabilities and class predictions for each. We set the threshold for class prediction to 0.5
 
 ### **Model training**
 ***
 
+Recall that for the purposes of the project, we train one model on 90% of the training data and validate on the remaining 10%. The following models were trained:
+
+- **Logistic regression**:
+The logistic regression model is trained in the typical fashion (using the binomial distribution). We calculate both log-likelihood and class probabilities in order to visualize the logits. As mentioned above, we construct class predictions by values over/under 0.5 
+
+- **Neural network**:
+We train a neural network with the neuralnet package. This model utilizes 1 hidden layer with 2 neurons, binary cross entropy as the error function, sigmoid activation function and resilient backpropagation without backtracking algorithm.
+
+- **Random forest**:
+The random forest model is trained on 150 trees. The default values for the remaining parameters were reasonable for our use case.
+
+- **Voting classifier**:
+This model is an ensemble classifier comprised of predictive information from all 3 models discussed above. The prediction from this ensemble is determined by the average predicted probablity from all models. 
 
 ## Evaluation
 
 ### **Metrics and other considerations**
 ***
 
+Models were assessed by 2 key metrics - *accuracy* and *AUC* (area under the ROC curve) - and to a lesser extent by sensitivity. We consider the confusion matrix and ROC curve or each model. 
 
 ## Deployment
 
 ### **ShinyApp**
 ***
 
-
-
+Key insights and metrics are viewable on our project shinyApp. [Stroke]("https://caseyag.shinyapps.io/StrokeDataShiny/")
 
