@@ -107,5 +107,5 @@ Models were assessed by 2 key metrics - *accuracy* and *AUC* (area under the ROC
 ### **ShinyApp**
 ***
 
-Key insights and metrics are viewable on our project shinyApp. [Stroke]("https://caseyag.shinyapps.io/StrokeDataShiny/")
+Key insights and metrics are viewable on our project shinyApp. [Stroke](https://caseyag.shinyapps.io/StrokeDataShiny/)
 
