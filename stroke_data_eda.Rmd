@@ -1,19 +1,22 @@
 ---
-title: "Stroke Data: EDA"
-author: "Abdul, Casey, and Dustin"
-date: "12-02-2019"
-output: html_document
+title: "Stat-613_hwk3_Pierce"
+author: "Dustin Pierce, Casey Aguilar-Gervase, Abdul Tarawally"
+date: "December 2, 2019"
+output:
+  pdf_document:
+    df_print: kable
+    dev: png
 ---
 
 ```{r setup, include=FALSE, fig.cap="A caption", out.width = '100%'}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, error = FALSE)
 ```
   
-# Explortatory Data Analysis 
+# Project Set Up
 
-## Import data
+## Package Imports
   
-```{r}
+```{r packages, include=FALSE, fig.cap="A caption", out.width = '100%'}
 library(tidyverse)
 install.packages("caret")
 library(caret)
@@ -34,12 +37,15 @@ library(RColorBrewer)
 library(devtools)
 install_github("vqv/ggbiplot")
 library(ggbiplot)
-install.packages("gridExtra")
-library(gridExtra)
-###### Issue: this code did not carry out the desired task ##################
-# stroke_url<-"https://www.kaggle.com/asaumya/healthcare-dataset-stroke-data#train_2v.csv"
-# download.file(stroke_url, "data.zip")
-###### Need help to resolve: really want to automate data set up ############
+install.packages("tree")
+library(tree)
+```
+
+## Data Import
+
+Data is manually uploaded to local machine after downloading from [Healthcare Dataset Stroke Data](https://www.kaggle.com/asaumya/healthcare-dataset-stroke-data). Note that the data dictionary loads as a screen shot (png) if directly downloaded from Kaggle. Thus, we rename to `stroke_dataset_dict.png`. We ignore `test_2v.csv` because stroke outcomes are not available. Therefore, we only utilize `train_2v.csv` for project data; in other words, we parse `train_2v.csv` into training and testing data. 
+
+```{r data, include=FALSE, fig.cap="A caption", out.width = '100%'}
 # Manually uploaded data after downloading to local from Kaggle
 df <- read_csv("train_2v.csv")
 # using png package to display data dictionary 
@@ -47,26 +53,35 @@ img <- png::readPNG("/home/rstudio/dx/stroke_dataset_dict.png")
 grid::grid.raster(img)
 ```
 
+# Explortatory Data Analysis 
+
 ## Understanding the data
 
-```{r}
+```{r understand_data, include=FALSE, fig.cap="A caption", out.width = '100%'}
 prop.table(table(df$stroke, useNA = "ifany"))*100 # ~ 2% YES stroke (need to balance classes)
-ggplot(data = df, aes(x = stroke)) + geom_bar() # want to add text to this to include records
-str(df) # need to map all non-id character features to factor/numeric
+
 summary(df) # will also need indicator/dummy variables for multi-class categorical
+
 unique(df$smoking_status) # NA is viewed as a character but is actually null
 unique(df$work_type) # similar NA issue; will need dummary variables for each category
 unique(df$Residence_type) # similar NA issue; will need dummary variables for each category
 unique(df$gender) # includes "other" option so cannot use binary indicator
-unique(df$ever_married) # binary -- convert to indicator feature
-unique(df$hypertension)
-class(df$hypertension) # binary and numeric!
-class(df$id) # need to convert to character
+unique(df$ever_married) # binary (YES/NO) -- convert to indicator feature
+unique(df$hypertension) # binary and numeric!
+
+class(df$id) # numeric -- need to convert to character
+
+## Plotting occurrences of stroke / non-stroke cases (imbalanced classes)
+ggplot(data = df, aes(x = stroke)) + 
+  geom_bar() + 
+  theme_bw() +
+  ggtitle("Non-stroke cases (left), Stroke cases (right)") +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 ## Feature Engineering
 
-```{r}
+```{r feature_engineering, include=FALSE, fig.cap="A caption", out.width = '100%'}
 # Engineering features based on above suggestions
 df <- df %>% mutate(id = as.character(id),
                     ever_married = ifelse(ever_married == "Yes", 1, 0),
@@ -84,9 +99,11 @@ df <- df %>% select(-smoking_status)
 dummies <- fastDummies::dummy_cols(df %>% select(-id))
 dummies <- dummies %>% dplyr::select(-work_type, -work_type_NA) %>% 
   dplyr::rename(work_type_Self_employed = `work_type_Self-employed`)
-summary(dummies)
+
+# Checking overlap
 dplyr::setdiff(names(dummies), names(df))
 dplyr::setdiff(names(df), names(dummies))
+
 # re-assigning id
 dummies$id <- df$id
 # Checking equality for common features before and after transform
@@ -97,20 +114,19 @@ all.equal(df %>% select(-work_type), dummies %>% select(-work_type_children,
                                                         -work_type_Never_worked))
 training_data <- dummies %>% tidyr::drop_na()
 (dim(training_data)[1]/dim(df)[1])*100 # preserve ~97% of records after dropping null
-### Notes:
+
 summary(training_data)
-# 1.Filtering unrealistic values of BMI
+# Filtering unrealistic values of BMI
 max(training_data$bmi, na.rm = TRUE) # doesn't seem realistic according to cdc
 training_data <- training_data %>% filter(bmi < 50)
 dim(training_data)[1]/dim(dummies)[1] # still have ~95% of original records 
-# 2. Quick look at stroke cases
-summary(training_data %>% filter(stroke == 1))
+
 rm(dummies, df)
 ```
 
 ## Comparing Stroke and Non-stroke cases
 
-```{r}
+```{r stroke_cases, include=FALSE, fig.cap="A caption", out.width = '100%'}
 # Comparing stroke versus non-stroke patients
 stroke_cases <- training_data %>% filter(stroke == 1)
 stroke_cases_no <- training_data %>% filter(stroke == 0)
@@ -139,7 +155,7 @@ In this section we address the class imbalance problem. Note that in the explora
 
 From the ROSE package documentation, "*ROSE (Random Over-Sampling Examples) aids the task of binary classification in the presence of rare classes. It produces a synthetic, possibly balanced, sample of data simulated according to a smoothed-bootstrap approach. ... Essentially, ROSE selects an observation belonging to the class k and generates new examples in its neighbourhood, where the width of the neighbourhood is determined by [diagonal covariance matrix]*". Note that class k refers to the response classes and in our case means (`1 = YES stroke`, `0 = NO stroke`). For our use case, we decided to balance the classes in a ratio of 1:1 (`p = 0.5`) and apply conservative shrink factors to each class (`hmult.majo = 0 = hmult.mino`). 
 
-```{r}
+```{r class_balance, include=FALSE, fig.cap="A caption", out.width = '100%'}
 # Original proportions of classes (0 = NO, 1 = YES)
 prop.table(table(training_data$stroke))*100
 # Setting formula with linear features
@@ -152,13 +168,20 @@ data_rose_0.5 <- ROSE::ROSE(formula_linear, p = 0.5, data = training_data,
 dim(data_rose_0.5) # 40163 x 14
 prop.table(table(data_rose_0.5$stroke))*100 
 
-ggplot(data = data_rose_0.5, aes(x = stroke)) + geom_bar()
+## ## Plotting occurrences of stroke / non-stroke cases (balanced classes)
+ggplot(data = data_rose_0.5, aes(x = stroke)) + 
+  geom_bar() + 
+  theme_bw() +
+  ggtitle("Non-stroke cases (left), Stroke cases (right)") +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 ### Principal Component Analysis
 
-```{r}
-#Principal Component Analysis -- balanced classes
+In this section we compare explained variance via princple component analysis for class imbalanced and class balanced data. 
+
+```{r pca, include=FALSE, fig.cap="A caption", out.width = '100%'}
+#Principal Component Analysis -- imbalanced classes
 pc_imbalanced <- prcomp(training_data %>% select(-id), center = TRUE, scale. = TRUE)
 pc_imbalanced$scale # checking the scale to see that the sd is calculated for each variable.
 print(pc_imbalanced)
@@ -173,6 +196,8 @@ g_imbalanced <- ggbiplot(pc_imbalanced, obs.scale = 1, var.scale = 1,
   theme_bw() + 
   ggtitle("Principal Component Analysis for Imbalanced Classes")
 
+g_imbalanced
+
 #Principal Component Analysis -- balanced classes
 pc_balanced <- prcomp(data_rose_0.5, center = TRUE, scale. = TRUE)
 pc_balanced$scale # checking the scale to see that the sd is calculated for each variable.
@@ -180,7 +205,7 @@ print(pc_balanced)
 summary(pc_balanced)
 screeplot(pc_balanced)
 
-g_balanced <- ggbiplot(pc, obs.scale = 1, var.scale = 1, 
+g_balanced <- ggbiplot(pc_balanced, obs.scale = 1, var.scale = 1, 
                        groups = data_rose_0.5$stroke,
                        ellipse = TRUE, circle = TRUE, 
                        ellipse.prob = 0.75) + 
@@ -188,14 +213,14 @@ g_balanced <- ggbiplot(pc, obs.scale = 1, var.scale = 1,
   theme_bw() + 
   ggtitle("Principal Component Analysis for Balanced Classes")
 
-gridExtra::grid.arrange(g_imbalanced, g_balanced, ncol = 1)
+g_balanced
 ```
 
 ## Modeling
 
 ### Partitioning data
 
-```{r}
+```{r partition, include=FALSE, fig.cap="A caption", out.width = '100%'}
 # set seed
 set.seed(13) 
 ## divide stroke cases into train/test with an index
@@ -234,7 +259,7 @@ In this subsection, we train a logistic regression model using the `glm` package
 
 We calculate the class probabilities together with the class predictions and assess performance via the so-called `confusion matrix`.
 
-```{r}
+```{r logsitic, include=FALSE, fig.cap="A caption", out.width = '100%'}
 ## Logistic regression
 logit <- stats::glm(formula = formula_linear, data = train, family = "binomial")
 test$prob_logit <- predict(logit, newdata = test, type = "response")
@@ -242,6 +267,7 @@ test$link_logit <- predict(logit, newdata = test, type = "link")
 test <- test %>% mutate(pred_logit = as.factor(ifelse(prob_logit > 0.5, 1, 0)),
                         stroke = as.factor(stroke))
 
+## Visualization of logistic regression (logits versus class probabilities)
 ggplot(test, aes(x = link_logit, y = prob_logit, color = pred_logit)) +
   geom_line(lwd=2) +
   labs(x= "Logits", y = "Probability", title="Probability of Stroke") + 
@@ -249,37 +275,45 @@ ggplot(test, aes(x = link_logit, y = prob_logit, color = pred_logit)) +
   scale_color_brewer(palette = "PuRd") +
   xlim(-5, 5)
 
+## Confusion matrix
 confusion_matrix_logit <- confusionMatrix(test$pred_logit, test$stroke, positive = "1")
 confusion_matrix_logit$table
 
+## ROC curve with AUC
 ROSE::roc.curve(response = test$stroke, predicted = test$pred_logit)
 ```
 
 ### Neural network
 
-In this subsection, we train a neural network using the `neuralnet` package. We experimented with a variety of activiation functions, learning algorthims and neural network architectures. Ultimately, we decided to use 1 hidden layer with 2 neurons, binary cross entropy as the error function, rectified linear activation function and resilient backpropagation with backtracking algorithm. 
+In this subsection, we train a neural network using the `neuralnet` package. We experimented with a variety of activiation functions, learning algorthims and neural network architectures. Ultimately, we decided to use 1 hidden layer with 2 neurons, binary cross entropy as the error function, sigmoid activation function and resilient backpropagation without backtracking algorithm. 
 
 We calculate the class probabilities together with the class predictions and assess performance via the so-called `confusion matrix`.
 
-```{r}
+```{r nn, include=FALSE, fig.cap="A caption", out.width = '100%'}
 ## NN
-# softplus <- function(x) {log(1+exp(x))}
-# sigmoid <- function(x) {1.0 / (1.0 + exp(-x))}
-leaky_relu <- function(x){ifelse(x < 0, 0.01*x, x)}
-relu <- function(x){ifelse(x < 0, 0, x)} # Rectified Linear Activation Function
+#####################################################
+# Activation functions considered:
+#       softplus <- function(x) {log(1+exp(x))}
+#       leaky_relu <- function(x){ifelse(x < 0, 0.01*x, x)}
+#       relu <- function(x){ifelse(x < 0, 0, x)}
+#####################################################
+sigmoid <- function(x) {1.0 / (1.0 + exp(-x))}
 nn <- neuralnet::neuralnet(formula = formula_linear, data = train, 
                            lifesign = "full", linear.output = FALSE, 
-                           threshold = 10, hidden = 3, startweights = NULL, 
-                           err.fct = "ce", act.fct = leaky_relu,
-                           algorithm = "rprop+", stepmax = 1e7)
-test$prob_nn <- predict(nn, newdata = test, type = "link")                       
+                           threshold = 0.5, hidden = 2, startweights = NULL, 
+                           err.fct = "ce", act.fct = sigmoid,
+                           algorithm = "rprop-", stepmax = 1e7)
+test$prob_nn <- predict(nn, newdata = test, type = "response")                       
 test <- test %>% mutate(pred_nn = as.factor(ifelse(prob_nn > 0.5, 1, 0)))
 
+## Visualization of NN (built-in method)
 plot(nn)
 
+## Confusion matrix
 confusion_matrix_nn <- confusionMatrix(test$pred_nn, test$stroke, positive = "1")
 confusion_matrix_nn$table
 
+## ROC curve with AUC
 ROSE::roc.curve(response = test$stroke, predicted = test$pred_nn)
 ```
 
@@ -289,13 +323,14 @@ In this subsection, we train a random forest model using the `randomForest` pack
 
 We calculate the class probabilities together with the class predictions and assess performance via the so-called `confusion matrix`.
 
-```{r}
+```{r rf, include=FALSE, fig.cap="A caption", out.width = '100%'}
 # Random forest
 rf <- randomForest::randomForest(formula = formula_linear, data = train, 
                                  ntree = 150, importance = TRUE)
 test$prob_rf <- predict(rf, test, type = "response")
 test <- test %>% mutate(pred_rf = as.factor(ifelse(prob_rf > 0.5, 1, 0)))
 
+## Optimal tree number
 plot(rf)
 
 # Variable importance
@@ -308,20 +343,49 @@ imp <- imp %>%
   dplyr::rename(importance = IncNodePurity)
 
 rm(imp_matrix)
-imp
+imp # Variable importance
 
+## Visualization of RF (work around using tree package)
+####################################################################
+## Using tree package to create visualization of representative tree
+X <- tree(stroke ~ gender + hypertension + heart_disease + ever_married + 
+            Residence_type + avg_glucose_level + bmi + work_type_children + 
+            work_type_Self_employed + work_type_Govt_job, 
+          data = train, split = "deviance")
+plot(X)
+text(X)
+####################################################################
+
+## Confusion matrix
 confusion_matrix_rf <- confusionMatrix(test$pred_rf, test$stroke, positive = "1")
 confusion_matrix_rf$table
 
+## ROC curve with AUC
 ROSE::roc.curve(response = test$stroke, predicted = test$pred_rf)
 ```
 
 ### Voting classifier
 
-In this subsection, we consider ensembles of the 3 models above in the form of voting classifiers. We construct both majority and weighted classifiers to compare performance to each model indiviudally.   
+In this subsection, we consider ensembles of the 3 models above in the form of voting classifiers. We construct a weighted classifiers to compare performance to each model indiviudally.   
 
-```{r}
-# Voting classifier
-test <- test %>% dplyr::mutate(prob_soft_vote = (as.numeric(test$prob_logit) + as.numeric(test$prob_nn) + as.numeric(test$prob_rf))/3)
-#test <- test %>% dplyr::mutate(pred_soft_vote = 
+```{r vote, include=FALSE, fig.cap="A caption", out.width = '100%'}
+## Voting classifier
+test <- test %>% dplyr::mutate(prob_soft_vote = (test$prob_logit + test$prob_nn + test$prob_rf)/3)
+test <- test %>% dplyr::mutate(pred_soft_vote = as.factor(ifelse(prob_soft_vote > 0.5, 1, 0)))
+
+## Confusion matrix
+confusion_matrix_soft_vote <- confusionMatrix(test$pred_soft_vote, test$stroke, positive = "1")
+confusion_matrix_soft_vote$table
+
+## ROC curve with AUC
+ROSE::roc.curve(response = test$stroke, predicted = test$pred_soft_vote)
+```
+
+## Validation
+
+Note that, thus far, models have been trained and evaluated using a 90%-10% train-test split of the **balanced class data**. Here we further evaluate performance of our models by predicting stroke for the original, i.e. imbalanced, data set (denoted `training_data`).
+
+```{r validation, include=FALSE, fig.cap="A caption", out.width = '100%'}
+
+
 ```
