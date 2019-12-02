@@ -1,0 +1,84 @@
+
+library(tidyverse)
+library(readr)
+#install.packages("png")
+library(png)
+library(caret)
+#install.packages("fastDummies")
+library(fastDummies)
+library(randomForest)
+library(neuralnet)
+#install.packages("ROSE")
+library(ROSE)
+library(e1071)
+
+# Manually uploaded data after downloading to local from Kaggle
+df <- read_csv("train_2v.csv")
+
+
+## Shiny App CSVs
+
+shiny_df <- df %>% select(-id) %>% filter(
+  gender != "Other") %>% mutate(
+  gender = ifelse(gender == 1, "Male", "Female"),
+  Residence_type = ifelse(Residence_type == 1, "Urban", "Rural"),
+  work_type = case_when(work_type_children == 1 ~ "children", work_type_Govt_job == 1 ~ "Govt_job", work_type_Never_worked == 1 ~ "Never_worked", work_type_Private == 1 ~ "Private", work_type_Self_employed == 1 ~ "Self-employed"),
+  hypertension = ifelse(hypertension == 1, "Yes", "No"),
+  heart_disease = ifelse(heart_disease == 1, "Yes", "No"),
+  ever_married = ifelse(ever_married == 1, "Yes", "No"),
+  stroke = ifelse(stroke == 1, "Yes", "No")) %>% rename(
+      `Work Type` = work_type, 
+      `Residence Type` = Residence_type, 
+      `Smoking Status` = smoking_status,
+      Gender = gender,
+      `Ever Married` = ever_married,
+      Hypertension = hypertension,
+      `Heart Disease` = heart_disease, 
+      Stroke = stroke,
+      Age = age,
+      BMI = bmi,
+      `Avg Glucose Level`=avg_glucose_level
+    ) 
+
+shiny_df
+write.csv(shiny_df, "strokedata.csv")
+
+balanced <- read.csv("balanced_stroke.csv")
+
+balanced <- balanced %>% rename(
+   `Work Type` = Work.Type, 
+       `Residence Type` = Residence.Type, 
+       `Ever Married` = Ever.Married,
+       `Heart Disease` = Heart.Disease, 
+       `Avg Glucose Level`=Avg.Glucose.Level) %>% select(
+         Gender, Age, Hypertension, `Heart Disease`, `Ever Married`, `Work Type`, `Residence Type`, `Avg Glucose Level`, BMI, Stroke)
+
+write.csv(balanced, "balanced_stroke.csv")
+
+balanced2 <- balanced %>% mutate(DF = "Balanced")
+shiny_df2 <- shiny_df %>% mutate(DF = "Original")
+
+full_join(balanced2, shiny_df2)
+
+balanced
+balanced2
+
+shiny_df2 <- shiny_df %>% mutate(Gender=as.factor(Gender), 
+                     Hypertension=as.factor(Hypertension), 
+                     `Heart Disease`=as.factor(`Heart Disease`), 
+                     `Ever Married`=as.factor(`Ever Married`), 
+                     `Work Type`=as.factor(`Work Type`), 
+                     `Residence Type`=as.factor(`Residence Type`),
+                     Stroke = ifelse(Stroke == 1, "Yes", "No"), `Work Type`=case_when(`Work Type`=="children"~"Children", `Work Type`=="Govt_job"~"Govt job", `Work Type`=="Self-employed"~"Self Employed", `Work Type`=="Never_worked"~"Never worked", `Work Type`=="Private"~"Private"), Hypertension = ifelse(Hypertension == 0, "No", "Yes"), `Heart Disease`=ifelse(`Heart Disease`==0, "No", "Yes")) %>% mutate(DF = "Original")
+
+shiny_df2
+write.csv(shiny_df2, "strokedata.csv")
+write.csv(balanced, "balanced_stroke.csv")
+
+full_df <- full_join(balanced2, shiny_df2) %>% mutate(`Heart Disease`=as.factor(`Heart Disease`), `Work Type`=as.factor(`Work Type`), Hypertension = as.factor(Hypertension), Stroke = as.factor(Stroke))
+
+write.csv(full_df,"full_df.csv")
+
+full_df
+
+
